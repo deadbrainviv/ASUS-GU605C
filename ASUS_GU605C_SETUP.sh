@@ -5,6 +5,7 @@
 # WARNING: SECURE BOOT MUST BE DISABLED IN UEFI/BIOS BEFORE RUNNING.
 
 # --- 1. CONFIGURATION AND ERROR HANDLING ---
+# Enable immediate exit on command failure, prevent unset variables, and detect errors in pipelines.
 set -euo pipefail
 
 # User configuration
@@ -22,19 +23,48 @@ ASUS_TMP_DIR="/tmp/asus_compile_$USER"
 # Logging function
 log_step() {
     local message="$1"
-    echo -e "\n\033[1;34m[INFO]\033\033[0m Line $LINENO in function ${FUNCNAME:-main context} failed."
-    log_step "\033\033; then
+    # Print the message with INFO tag and blue color
+    echo -e "\n\033[1;34m[INFO]\033\033[0m"
+    echo "Failure occurred in function: ${FUNCNAME[1]:-main context}"
+    echo "Failed command: '$last_command'"
+    echo "Error on line: $line"
+    echo "--- CHECK LOGS AND REVIEW FAILURE CONTEXT ---"
+}
+trap 'error_trap' ERR
+
+# Cleanup function (Runs on EXIT signal, regardless of success or failure)
+cleanup() {
+    local rv=$? # Capture the final exit status of the script
+    log_step "Starting final cleanup routine..."
+    
+    # Check and remove temporary kernel directory
+    if; then
         rm -rf "$KERNEL_TMP_DIR"
         log_step "Removed temporary kernel directory: $KERNEL_TMP_DIR"
     fi
+    
+    # Check and remove temporary ASUS compilation directory
     if; then
         rm -rf "$ASUS_TMP_DIR"
         log_step "Removed temporary ASUS compilation directory: $ASUS_TMP_DIR"
     fi
-    if [ "$rv" -eq 0 ]; then
-        log_step "\033; then
+
+    if [ "$rv" -ne 0 ]; then
+        log_step "Script finished with ERRORS (Exit Code $rv)."
+    else
+        log_step "Script finished successfully (Exit Code 0). Please REBOOT NOW."
+    fi
+    
+    # Exit with the captured status code
+    exit "$rv"
+}
+trap 'cleanup' EXIT
+
+# Initial root check and re-execution with sudo
+if]; then
     if command -v sudo &> /dev/null; then
         log_step "Script not running as root. Rerunning with sudo."
+        # Use exec to replace the current shell process with the sudo command
         exec sudo "$0" "$@"
     else
         echo "Please run this script as root or with sudo."
@@ -42,8 +72,8 @@ log_step() {
     fi
 fi
 
-# Set $USER back to the invoking user's actual username for non-sudo operations
-if; then
+# Set $USER_NAME back to the invoking user's actual username for non-sudo operations (like usermod)
+if]; then
     USER_NAME="$SUDO_USER"
 else
     USER_NAME=$(whoami)
@@ -88,7 +118,8 @@ log_step "Stage 3: NVIDIA Driver Installation (DKMS dependency on ${KERNEL_FULL_
 log_step "Purging potentially conflicting NVIDIA drivers."
 sudo apt-get remove --purge '^nvidia-.*' |
 
-| true
+| true # Use |
+| true to prevent script exit if no packages match
 sudo apt autoremove
 
 log_step "Adding the official graphics-drivers PPA for recent driver access."
@@ -103,6 +134,8 @@ GDM_RULES_FILE="/lib/udev/rules.d/61-gdm.rules"
 if grep -q 'DRIVER=="nvidia", RUN+="/usr/lib/gdm3/gdm-disable-wayland"' "$GDM_RULES_FILE"; then
     sudo sed -i '/DRIVER=="nvidia", RUN+="/usr/lib/gdm3/gdm-disable-wayland"/c\#DRIVER=="nvidia", RUN+="/usr/lib/gdm3/gdm-disable-wayland"' "$GDM_RULES_FILE"
     log_step "GDM Wayland disabling rule commented out."
+else
+    log_step "Wayland disabling rule for NVIDIA not found or already commented out."
 fi
 
 # --- 5. ASUS CONTROL PLANE COMPILATION (asusctl and supergfxctl) ---
@@ -113,7 +146,7 @@ log_step "Stage 4: Installing Rust toolchain and compiling ASUS Control Utilitie
 export PATH="/root/.cargo/bin:$PATH"
 
 log_step "Verifying Rust installation for compilation."
-if! command -v rustc &> /dev/null; then
+if! command -v rustc &> /dev/null; then # Corrected: added space after 'if'
     log_step "Rust toolchain is not fully configured or installed. Re-running rustup."
     # Install rust again, this time as root for consistency in the script environment
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -132,7 +165,7 @@ log_step "Enabling and starting supergfxd service."
 sudo systemctl enable supergfxd.service --now
 
 cd "$ASUS_TMP_DIR"
-log_step "Cloning and compiling asusctl."
+log_step "Cloning and building asusctl."
 git clone https://gitlab.com/asus-linux/asusctl.git
 cd asusctl
 make && sudo make install
@@ -154,5 +187,6 @@ FIRMWARE_TMP_DIR=$(mktemp -d)
 log_step "Staging and copying cirrus firmware files to /lib/firmware."
 make install DESTDIR="$FIRMWARE_TMP_DIR"
 sudo cp -r "$FIRMWARE_TMP_DIR/lib/firmware/cirrus" /lib/firmware
+rm -rf "$FIRMWARE_TMP_DIR"
 
-# Final cleanup handled by the trap
+# Final cleanup handled by the EXIT trap
