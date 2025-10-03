@@ -19,16 +19,14 @@ MAINLINE_URL="https://kernel.ubuntu.com/mainline/v${KERNEL_VERSION}"
 KERNEL_TMP_DIR="/tmp/kernel_install_$USER"
 ASUS_TMP_DIR="/tmp/asus_compile_$USER"
 
-
 # Logging function
 log_step() {
     local message="$1"
-    # Print the message with INFO tag and blue color
     echo -e "\n\033[1;34m[INFO]\033\033[0m"
     echo "Failure occurred in function: ${FUNCNAME[1]:-main context}"
     echo "Failed command: '$last_command'"
     echo "Error on line: $line"
-    echo "--- CHECK LOGS AND REVIEW FAILURE CONTEXT ---"
+    echo "--- REVIEW FAILURE CONTEXT BEFORE REBOOTING ---"
 }
 trap 'error_trap' ERR
 
@@ -50,9 +48,9 @@ cleanup() {
     fi
 
     if [ "$rv" -ne 0 ]; then
-        log_step "Script finished with ERRORS (Exit Code $rv)."
+        log_step "Script finished with ERRORS (Exit Code $rv). DO NOT REBOOT YET."
     else
-        log_step "Script finished successfully (Exit Code 0). Please REBOOT NOW."
+        log_step "Script finished successfully (Exit Code 0). Please REBOOT NOW to load the new kernel."
     fi
     
     # Exit with the captured status code
@@ -61,7 +59,7 @@ cleanup() {
 trap 'cleanup' EXIT
 
 # Initial root check and re-execution with sudo
-if]; then
+if; then
     if command -v sudo &> /dev/null; then
         log_step "Script not running as root. Rerunning with sudo."
         # Use exec to replace the current shell process with the sudo command
@@ -73,7 +71,7 @@ if]; then
 fi
 
 # Set $USER_NAME back to the invoking user's actual username for non-sudo operations (like usermod)
-if]; then
+if; then
     USER_NAME="$SUDO_USER"
 else
     USER_NAME=$(whoami)
@@ -99,6 +97,7 @@ cd "$KERNEL_TMP_DIR"
 
 # Download the four required DEB packages for 6.15.11 (amd64)
 log_step "Downloading kernel packages from ${MAINLINE_URL}."
+# Note: The wildcards * are used because the full package version string includes a dynamic timestamp.
 wget -c "${MAINLINE_URL}/amd64/linux-headers-${KERNEL_FULL_VERSION}-*-generic_*.deb"
 wget -c "${MAINLINE_URL}/amd64/linux-headers-${KERNEL_FULL_VERSION}_*_all.deb"
 wget -c "${MAINLINE_URL}/amd64/linux-image-unsigned-${KERNEL_FULL_VERSION}-*-generic_*.deb"
@@ -146,7 +145,7 @@ log_step "Stage 4: Installing Rust toolchain and compiling ASUS Control Utilitie
 export PATH="/root/.cargo/bin:$PATH"
 
 log_step "Verifying Rust installation for compilation."
-if! command -v rustc &> /dev/null; then # Corrected: added space after 'if'
+if! command -v rustc &> /dev/null; then
     log_step "Rust toolchain is not fully configured or installed. Re-running rustup."
     # Install rust again, this time as root for consistency in the script environment
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

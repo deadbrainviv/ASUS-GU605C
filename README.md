@@ -1,8 +1,8 @@
-Comprehensive Installation Guide: Ubuntu 24.04 on ASUS ROG Zephyrus GU605C
+## Comprehensive Installation Guide: Ubuntu 24.04 on ASUS ROG Zephyrus GU605C
 The installation of Ubuntu 24.04 LTS on modern, high-performance laptops like the ASUS ROG Zephyrus GU605C (2025 model) presents significant challenges due to hardware components that exceed the support capabilities of the distribution's default kernel stack. This guide details the necessity of an expedited, custom installation path, focusing on kernel 6.15.11, proprietary NVIDIA drivers, and bespoke control software, delivered through a professional-grade, error-resilient Bash script.
 
-1. Introduction to the ASUS GU605C Compatibility Challenge
-1.1 Hardware Overview and Linux Compatibility Status
+# 1. Introduction to the ASUS GU605C Compatibility Challenge
+# 1.1 Hardware Overview and Linux Compatibility Status
 
 The Zephyrus GU605C incorporates bleeding-edge components, including an Intel Core Ultra processor (likely 14th generation or newer) and a powerful NVIDIA GeForce RTX 50 Series Laptop GPU. Linux support for such recent hardware is often delayed, relying on rapid development in the mainline kernel rather than the stable, slower-moving Long-Term Support (LTS) kernels distributed by Canonical.   
 
